@@ -2,16 +2,16 @@
 #include<string.h>
 #include<stdlib.h>
 #include<ctype.h>
-#define MAX 40
+#define MAX 1000
 #define TRUE 1
-#define FALSE 0
+#define FALSE -1
 //=================구조체=======================
 typedef struct token{
 	char oper;
 	int data;
 }Token;
 typedef struct stackNode{
-	char data;
+	Token data;
 	struct stackNode *link;
 }StackNode;
 typedef struct treeNode{
@@ -27,12 +27,12 @@ char inpStr[MAX];
 char postExpr[MAX];
 int flag;
 //--------------스택 관련연산함수-----------------
-void push(char item);
-char pop();
-char peek();
+void push(Token item);
+Token pop();
+Token peek();
 //-------중위표기식을 후위표기식으로--------------
 int checkPriority();			//우선순위를 결정하는함수
-void initString();				//후위표기식이 저장된 문자열 배열을 초기화 시키는함수
+void initString(char *string);				//후위표기식이 저장된 문자열 배열을 초기화 시키는함수
 void inToPost();				//중위 -> 후위 로직 함수
 //-------트리 관련연산함수--------------
 TreeNode* createNode(Token newData);
@@ -40,6 +40,7 @@ void destroyNode(TreeNode* node);
 void destroyTree(TreeNode* root);
 void buildExprTree(char *postExpression, TreeNode **node);	//수식 트리 생성
 int evaluateTree(TreeNode *root);
+int evalPostfix(char *exp);
 //---------------------------------------------
 int main()
 {
@@ -66,11 +67,12 @@ int main()
 
 		/*트리 생성*/
 
-		buildExprTree(postExpr,&root);
+		//buildExprTree(postExpr,&root);
 
 		/*트리 연산*/
 
-		result = evaluateTree(root);
+		//result = evaluateTree(root);
+		result = evalPostfix(postExpr);
 
 		/*연산 결과 출력*/
 		
@@ -78,14 +80,17 @@ int main()
 			fprintf(output,"%d\n", result);
 		} else if(flag == TRUE){
 			fprintf(output, "Error!\n");
+			while (top != NULL){
+				pop();
+			}
 		}
 
-		/*후위식 문자열 초기화*/
-
-		initString();
-
-		/*Flag 초기화*/
-		flag = FALSE;
+		/*초기화*/
+		//destroyTree(root);	//트리파괴
+		initString(postExpr);		//문자열 초기화
+		flag = FALSE;		//flag 변수 초기화
+		result = 0;			//result값 초기화
+		
 		
 	}//end testCase while
 
@@ -94,20 +99,23 @@ int main()
 	return 0;
 }
 //----------------------------------------------------
-void push(char item)
+void push(Token item)
 {
 	StackNode *temp = (StackNode*)malloc(sizeof(StackNode));
+	//if (item.oper == 0){
 	temp->data = item;
 	temp->link = top;
 	top = temp;
 }
-char pop()
+Token pop()
 {
-	char item;
+	Token item;
 	StackNode *temp = top;
 
 	if (top == NULL){
-		return 0;
+		item.data = 0;
+		item.oper = 0;
+		return item;
 	} else {
 		item = temp->data;
 		top = temp->link;
@@ -115,13 +123,15 @@ char pop()
 		return item;
 	}
 }
-char peek()
+Token peek()
 {
-	char item;
+	Token item;
 	StackNode *temp = top;
 
 	if (top == NULL){
-		return 0;
+		item.data = 0;
+		item.oper = 0;
+		return item;
 	} else {
 		item = temp->data;
 		return item;
@@ -145,28 +155,31 @@ void inToPost()
 	int i;
 	int length;
 	int expr_Idx = 0;
+	Token temp;
 
 	while (TRUE){
 		fscanf(input, "%s", inpStr);
 		// = 을 입력받으면 반복문 정지
 		if (!strcmp(inpStr, "=")){
 			while (top != NULL){
-				postExpr[expr_Idx++] = pop();
+				postExpr[expr_Idx++] = pop().oper;
 				postExpr[expr_Idx++] = ' ';
 			}
 			break;
 		} else if (!isdigit(inpStr[0])){// 연산자일 경우
 			//top이 널이면 무조건 push
 			if (top == NULL){
-				push(inpStr[0]);
+				temp.oper = inpStr[0];
+				push(temp);
 			} else {
 			//top이 NULL이 아니고, 현재 입력 연산자와 스택의 top의 연산자와 우선순위 비교하여
 			//자신보다 같거나 높은 것이 있다면 모두 pop하고 push
-				while (top != NULL && (checkPriority(peek()) >= checkPriority(inpStr[0]))){
-					postExpr[expr_Idx++] = pop();
+				while (top != NULL && (checkPriority(peek().oper) >= checkPriority(inpStr[0]))){
+					postExpr[expr_Idx++] = pop().oper;
 					postExpr[expr_Idx++] = ' ';
 				}
-				push(inpStr[0]);
+				temp.oper = inpStr[0];
+				push(temp);
 			}
 		} else {						// 피연산자일 경우
 			length = strlen(inpStr);
@@ -178,10 +191,10 @@ void inToPost()
 	}
 	postExpr[expr_Idx - 1] = 0;
 }
-void initString(){
+void initString(char *string){
 	int i;
 	for (i = 0; i < MAX; i++){
-		postExpr[i] = 0;
+		string[i] = 0;
 	}
 }
 //-----------------------------------------------------
@@ -211,7 +224,7 @@ void buildExprTree(char *postExpression, TreeNode **node)
 	int length = strlen(postExpression);
 	int last = length - 1;
 	int i, j;
-	char str[10] = { 0 };
+	char str[MAX] = {0};
 	int str_cnt = 0;
 
 	//char temp = postExpression[last];
@@ -289,4 +302,70 @@ int evaluateTree(TreeNode *root)
 		return root->token.data;
 	}
 	return result;
+}
+int evalPostfix(char *exp)    //후위 표기식을 계산하는 연산
+{
+	int opr1, opr2, value, i = 0;
+	int length = strlen(exp);
+	char symbol;
+	char numbers[MAX] = {0};
+	int j;
+	int num_cnt = 0;
+	Token temp;
+	top = NULL;
+
+	for (i = 0; i<length; i++){
+		symbol = exp[i];
+		if (symbol ==  ' '){
+			continue;
+		}
+		if (symbol != '+' && symbol != '-' && symbol != '*' && symbol != '/' && symbol != '%'){
+			for (j = i; j < length; j++){
+				if (exp[j] == ' ')
+					break;
+				else
+					numbers[num_cnt++] = exp[j];
+			}
+			value = atoi(numbers);
+			temp.data = value;
+			push(temp);
+			num_cnt = 0;
+			initString(numbers);
+			i = j;
+		} else{
+			opr2 = pop().data;
+			opr1 = pop().data;
+			switch (symbol){
+			case '+':
+				temp.data = (opr1 + opr2);
+				push(temp);
+				break;
+			case '-':
+				temp.data = (opr1 - opr2);
+				push(temp);
+				break;
+			case '*':
+				temp.data = (opr1 * opr2);
+				push(temp);
+				break;
+			case '/':
+				if (opr2 == 0) {
+					flag = TRUE;
+					return 0;
+				}				
+				temp.data = (opr1 / opr2);
+				push(temp);
+				break;
+			case '%': 
+				if (opr2 == 0) {
+					flag = TRUE;
+					return 0;
+				}
+				temp.data = (opr1 % opr2);
+				push(temp);
+				break;
+			}
+		}
+	}
+	return pop().data;
 }
